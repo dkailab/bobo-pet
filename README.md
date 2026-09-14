@@ -115,6 +115,15 @@ npm run dist:win      # 只打 Windows：卜卜宠物-<版本>-安装包.exe（x
 * **平台差异**：节拍模式（ScreenCaptureKit）是 macOS 专属能力；Windows 上拖动/戳卜卜/连戳变紫/钢琴曲/蹦迪开关/加台词/待办/番茄钟/喝水提醒全部可用，但不能跟随音乐蹦迪
 * Mac 节拍模式需在 系统设置 → 隐私与安全性 → 屏幕录制 中授权；其余功能全部离线可用
 
+## ⬇️ 下载安装包
+
+安装包体积较大（每个 >100MB），不放进 git 仓库，统一托管在 **GitHub Releases**（单文件上限 2GB）：
+
+* [macOS · 卜卜宠物-0.1.0-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/卜卜宠物-0.1.0-universal.dmg)（Apple Silicon + Intel 通用）
+* [Windows · 卜卜宠物-0.1.0-安装包.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/卜卜宠物-0.1.0-安装包.exe)（x64 中文安装向导）
+
+> 说明：`releases/latest/download/` 会自动指向**最新版（一个 release 里的最终且同名）**资产。发布新版时尽量沿用上述文件名，链接即可持续可用。
+
 ## ❓ 常见问题
 
 
