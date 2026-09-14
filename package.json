@@ -1,0 +1,92 @@
+{
+  "name": "bobo-pet",
+  "productName": "卜卜宠物",
+  "version": "0.1.0",
+  "description": "桌面宠物：跟音乐蹦迪，被戳会躲，自带待办与提醒",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "smoke": "electron . --smoke",
+    "dist": "electron-builder --mac --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "license": "MIT",
+  "author": "新一🥕 Ai coding",
+  "devDependencies": {
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.bubupet.desktop",
+    "productName": "卜卜宠物",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "package.json",
+      "renderer/**/*"
+    ],
+    "afterSign": "scripts/sign-helper.cjs",
+    "mac": {
+      "category": "public.app-category.entertainment",
+      "icon": "build/icon.icns",
+      "identity": "-",
+      "hardenedRuntime": false,
+      "entitlements": "scripts/entitlements.mac.plist",
+      "extendInfo": {
+        "NSScreenCaptureUsageDescription": "卜卜宠物需要录制屏幕与系统音频，用于感知音乐节拍并跟歌蹦迪。",
+        "NSMicrophoneUsageDescription": "卜卜宠物需要访问麦克风以感知当前播放的音乐。"
+      },
+      "files": [
+        "audio-helper"
+      ],
+      "asarUnpack": [
+        "audio-helper"
+      ],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        }
+      ]
+    },
+    "dmg": {
+      "title": "卜卜宠物 ${version}",
+      "icon": "build/icon.icns",
+      "contents": [
+        { "x": 130, "y": 220 },
+        { "x": 410, "y": 220, "type": "link", "path": "/Applications" }
+      ]
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}-安装包.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "卜卜宠物",
+      "installerLanguages": [
+        "zh_CN"
+      ],
+      "language": "2052",
+      "deleteAppDataOnUninstall": false
+    }
+  }
+}

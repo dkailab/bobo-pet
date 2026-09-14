@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' file: data:; media-src 'self'">
+<title>桌面宠物</title>
+<link rel="stylesheet" href="pet.css">
+</head>
+<body>
+<div id="stage">
+
+  <div id="bubble"></div>
+  <input id="line-input" type="text" maxlength="40" placeholder="写句台词，回车收下～">
+
+  <div id="pet-wrap">
+    <!-- 预设默认皮肤 src：避免首帧显示空白占位，启动后 initSkin 再用用户自定义皮肤覆盖 -->
+    <img id="pet-img" src="assets/pet-normal.png" draggable="false" alt="宠物">
+  </div>
+
+  <div id="menu" style="display:none">
+    <div class="mi" data-a="quit">退出 ✕</div>
+    <div class="sep"></div>
+    <div class="mi" data-a="skinNormal">正常形象 🎨</div>
+    <div class="mi" data-a="skinAngry">生气表情 😠</div>
+    <div class="mi" data-a="about">关于</div>
+    <div class="mi" data-a="dance">蹦迪模式：关</div>
+    <div class="mi" data-a="addline">加台词 ✏️</div>
+    <div class="mi" data-a="addrem">加提醒 ⏰</div>
+    <div class="mi" data-a="todo">输入待办 ➕</div>
+    <div class="mi" data-a="todolist">待办列表 📋</div>
+    <div class="mi" data-a="pomodoro">番茄钟 🍅</div>
+    <div class="mi" data-a="water">喝水提醒 💧</div>
+    <div class="mi" data-a="bgm">钢琴曲：关</div>
+    <div class="mi" data-a="sleep">睡觉 / 醒来</div>
+  </div>
+
+  <div id="todopanel" style="display:none">
+      <div class="tp-head"><span>待办列表</span><span class="tp-close" id="tpClose">✕</span></div>
+      <div id="tplist" class="tp-body"></div>
+      <div class="tp-empty" id="tpEmpty" style="display:none">还没有待办，点「输入待办」添加吧～</div>
+    </div>
+
+    <audio id="bgm" src="assets/piano_bgm.m4a" loop preload="auto"></audio>
+
+  <div id="status"></div>
+</div>
+<script src="pet.js"></script>
+</body>
+</html>

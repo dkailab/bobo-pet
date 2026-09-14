@@ -1,0 +1,99 @@
+/* 卜卜宠物 · 样式 */
+html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; user-select: none; -webkit-user-select: none; }
+body { font-family: 'PingFang SC', 'Hiragino Sans GB', sans-serif; }
+
+#stage { position: fixed; inset: 0; }
+
+/* 气泡 */
+#bubble {
+  position: absolute; left: 50%; bottom: 260px; transform: translateX(-50%);
+  width: max-content;
+  max-width: 250px; min-width: 60px;
+  background: #fff; border: 1.5px solid #F76707; border-radius: 12px;
+  padding: 7px 11px; font-size: 13px; line-height: 1.45; white-space: pre-line;
+  color: #1A1B1C; text-align: center;
+  opacity: 0; transition: opacity .25s; pointer-events: none;
+  box-shadow: 0 2px 10px rgba(0,0,0,.12); z-index: 5;
+}
+#bubble::after {
+  content: ''; position: absolute; left: 50%; bottom: -7px; transform: translateX(-50%);
+  border: 7px solid transparent; border-top-color: #fff; border-bottom: 0;
+}
+#bubble.show { opacity: 1; }
+
+/* 加台词输入框（与气泡同位） */
+#line-input {
+  position: absolute; left: 50%; bottom: 260px; transform: translateX(-50%);
+  width: 188px; display: none; z-index: 6;
+  border: 1.5px solid #F76707; border-radius: 12px; outline: none;
+  padding: 7px 10px; font-size: 13px; font-family: inherit; color: #1A1B1C;
+  text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.12);
+  box-sizing: border-box;
+}
+#line-input.show { display: block; }
+
+/* 卜卜本体 */
+#pet-wrap {
+  position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%);
+  cursor: grab; z-index: 3;
+  transform-origin: 50% 100%;
+}
+#pet-wrap:active { cursor: grabbing; }
+#pet-img { height: 240px; width: auto; display: block; pointer-events: none; }
+
+/* 睡觉 */
+#pet-wrap.sleeping #pet-img {
+  filter: brightness(.88) saturate(.75);
+  opacity: .94;
+}
+
+/* 菜单 */
+#menu {
+  position: absolute; right: 6px; top: 6px; z-index: 9;
+  background: rgba(255,255,255,.97); border: 1px solid #E4E3DD; border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.15); overflow-y: auto; width: 150px;
+  max-height: 320px;
+}
+#menu::-webkit-scrollbar { width: 5px; }
+#menu::-webkit-scrollbar-thumb { background: #E4E3DD; border-radius: 3px; }
+#menu .mi { padding: 8px 12px; font-size: 12.5px; color: #1A1B1C; cursor: pointer; }
+#menu .mi:hover { background: #FFF3E8; color: #E8590C; }
+#menu .sep { height: 1px; background: #E4E3DD; margin: 2px 0; }
+
+/* 待办列表面板 */
+#todopanel {
+  position: absolute; right: 8px; top: 8px; z-index: 10;
+  width: 190px; max-height: 300px;
+  background: rgba(255,255,255,.97); border: 1px solid #E4E3DD; border-radius: 10px;
+  box-shadow: 0 4px 16px rgba(0,0,0,.15);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.tp-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 7px 10px; font-size: 12.5px; font-weight: 600; color: #1A1B1C;
+  border-bottom: 1px solid #F0EEE7; cursor: default;
+}
+.tp-close {
+  cursor: pointer; color: #999; font-size: 12px; padding: 0 2px;
+}
+.tp-close:hover { color: #E8590C; }
+#tplist.tp-body { overflow-y: auto; max-height: 240px; }
+.tp-item {
+  display: flex; align-items: flex-start; gap: 6px;
+  padding: 7px 10px; font-size: 12.5px; color: #1A1B1C; cursor: pointer;
+  border-bottom: 1px solid #F7F5F0; user-select: none; -webkit-user-select: none;
+}
+.tp-item:hover { background: #FFF3E8; }
+.tp-item input[type=checkbox] {
+  margin-top: 1px; cursor: pointer; accent-color: #F76707; flex: none;
+}
+.tp-item .tp-text { word-break: break-all; line-height: 1.4; }
+.tp-item.done .tp-text { color: #A8A29C; text-decoration: line-through; }
+.tp-empty { padding: 16px 10px; text-align: center; font-size: 12px; color: #A8A29C; }
+
+/* 底部状态小字 */
+#status {
+  position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
+  font-size: 10px; color: rgba(26,27,28,.55); white-space: nowrap; z-index: 2;
+  pointer-events: none;
+}
