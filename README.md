@@ -1,12 +1,27 @@
 # 🥕 桌面宠物（Desktop Pet）
 
+> **版权声明**：桌面宠物「卜卜」形象版权归 **STAYREAL（五月天阿信 × 不二良）所有**。本应用为通用工具，支持你用**自己的本地图片**导入替换其建模形象；请勿将卜卜形象用于任何商业用途。
+
+当前版本：**v0.1.0**（本版已归档）
+
+---
+
+## ⬇️ 立即下载 · v0.1.0
+
+- [🍎 macOS 通用版（Apple Silicon + Intel）…bobo-pet-0.1.0-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.1.0-universal.dmg)
+- [🪟 Windows x64 中文安装包 …bobo-pet-0.1.0-windows-installer.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.1.0-windows-installer.exe)
+
+> 安装包托管在 **GitHub Releases**（每个 >100MB，不放进 git 仓库）。安装方法见文末「首次使用授权 / 常见问题」。
+
+---
+
 一款通用的桌面宠物：放音乐它就感知节拍跟歌蹦迪，被戳会躲会生气，待办、番茄钟、喝水提醒它都帮你记着。
 
 **它住在你的桌面上，陪你上下班。**
 
 > **关于形象与素材**
 >
-> 本应用**不内置、不分发任何第三方受版权保护的宠物形象或素材**。宠物外观默认从你的本地图片加载 —— 你可以把自己拥有或已获授权的图片导入作为宠物形象，随时可更换。
+> 本应用**不内置、不分发任何第三方受版权保护的宠物形象或素材**。宠物外观通过右键菜单导入你自己的本地图片加载，可随时更换建模形象。
 >
 > **使用声明（责任归位）**
 >
@@ -16,8 +31,6 @@
 > - 请尊重原作者版权，勿将未经授权的形象用于商业用途。
 >
 > 请在导入前确认图片来源，做一个守法的可爱宠物主人 🥕
-
-
 
 ***
 
@@ -114,15 +127,6 @@ npm run dist:win      # 只打 Windows：卜卜宠物-<版本>-安装包.exe（x
 * 正式无警告分发需要 Apple Developer 签名公证（$99/年）/ Windows 代码签名证书
 * **平台差异**：节拍模式（ScreenCaptureKit）是 macOS 专属能力；Windows 上拖动/戳卜卜/连戳变紫/钢琴曲/蹦迪开关/加台词/待办/番茄钟/喝水提醒全部可用，但不能跟随音乐蹦迪
 * Mac 节拍模式需在 系统设置 → 隐私与安全性 → 屏幕录制 中授权；其余功能全部离线可用
-
-## ⬇️ 下载安装包
-
-安装包体积较大（每个 >100MB），不放进 git 仓库，统一托管在 **GitHub Releases**（单文件上限 2GB）：
-
-* [macOS · 卜卜宠物-0.1.0-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/卜卜宠物-0.1.0-universal.dmg)（Apple Silicon + Intel 通用）
-* [Windows · 卜卜宠物-0.1.0-安装包.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/卜卜宠物-0.1.0-安装包.exe)（x64 中文安装向导）
-
-> 说明：`releases/latest/download/` 会自动指向**最新版（一个 release 里的最终且同名）**资产。发布新版时尽量沿用上述文件名，链接即可持续可用。
 
 ## ❓ 常见问题
 
