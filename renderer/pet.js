@@ -299,6 +299,7 @@
     if (a === 'skinNormal') changePetSkin('normal', '正常形象')
     if (a === 'skinAngry') changePetSkin('angry', '生气表情')
     if (a === 'about') say('卜卜形象版权归 STAYREAL 所有\n由品牌创建者 五月天阿信 × 不二良 共同所有\n仅供粉丝个人娱乐使用，禁止商用盈利\n右键可随时更换正常形象 / 生气表情 🥕', 6000)
+    if (a === 'aiTasks') window.bobo.openAiTasks()
     if (a === 'dance') toggleDance()
     if (a === 'addline') openLineEditor()
     if (a === 'addrem') openInput('rem')

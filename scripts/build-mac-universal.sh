@@ -15,6 +15,8 @@ set -e
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}"
+VERSION="${VERSION:-0.2.0}"
+DMG="$ROOT/dist/卜卜宠物-${VERSION}-universal.dmg"
 
 echo "========== 0. 校验语法 =========="
 node --check main.js
@@ -74,4 +76,4 @@ cp -R "$ROOT/dist/mac-universal/卜卜宠物.app" "$ROOT/release/卜卜宠物.ap
 echo "✅ 完成：release/卜卜宠物.app"
 echo ""
 echo "── 打 dmg（需在非沙盒终端）──"
-echo "cd \"$ROOT\" && rm -rf /tmp/bobo_dmg && mkdir -p /tmp/bobo_dmg && ln -s /Applications /tmp/bobo_dmg/Applications && cp -R release/卜卜宠物.app /tmp/bobo_dmg/卜卜宠物.app && hdiutil create -volname '卜卜宠物 0.1.0' -srcfolder /tmp/bobo_dmg -ov -format UDZO -imagekey zlib-level=9 dist/卜卜宠物-0.1.0-universal.dmg"
+echo "cd \"$ROOT\" && rm -rf /tmp/bobo_dmg && mkdir -p /tmp/bobo_dmg && ln -s /Applications /tmp/bobo_dmg/Applications && cp -R release/卜卜宠物.app /tmp/bobo_dmg/卜卜宠物.app && hdiutil create -volname \"卜卜宠物 ${VERSION}\" -srcfolder /tmp/bobo_dmg -ov -format UDZO -imagekey zlib-level=9 \"$DMG\""

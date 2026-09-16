@@ -10,5 +10,10 @@ contextBridge.exposeInMainWorld('bobo', {
   selectPetNormal: () => ipcRenderer.invoke('bobo:select-pet-normal'),
   selectPetAngry: () => ipcRenderer.invoke('bobo:select-pet-angry'),
   getPetSkin: () => ipcRenderer.invoke('bobo:get-pet-skin'),
-  skinRendered: () => ipcRenderer.send('bobo:skin-rendered')
+  skinRendered: () => ipcRenderer.send('bobo:skin-rendered'),
+  // AI 任务监控：注入到 pet 窗口与 tasks 浮窗
+  openAiTasks: () => ipcRenderer.send('bobo:open-ai-tasks'),
+  getAiTasksInfo: () => ipcRenderer.invoke('bobo:ai-tasks-info'),
+  onTasksUpdate: (cb) => ipcRenderer.on('tasks:update', (_e, d) => cb(d)),
+  taskResize: (d) => ipcRenderer.send('tasks:resize', d)
 })

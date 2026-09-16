@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:">
+<title>AI 任务监控</title>
+<link rel="stylesheet" href="tasks.css">
+</head>
+<body>
+<div id="app">
+  <div id="glow"></div>
+  <header id="hdr">
+    <span class="dot"></span>
+    <span class="ttl">AI 任务监控</span>
+    <div id="srcs"></div>
+    <button id="close" title="关闭">✕</button>
+  </header>
+
+  <section id="stats">
+    <div class="stat st-all"><b id="st-total">0</b><span>全部</span></div>
+    <div class="stat st-run"><b id="st-run">0</b><span>执行中</span></div>
+    <div class="stat st-ok"><b id="st-done">0</b><span>完成</span></div>
+    <div class="stat st-fail"><b id="st-fail">0</b><span>失败</span></div>
+  </section>
+
+  <main id="grid"></main>
+
+  <div id="empty" class="hidden">
+    <div class="ring"></div>
+    <p class="empty-t">等待 AI 任务接入…</p>
+    <p class="empty-d">向本地服务推送任务，或把任务 JSON 丢进监控目录，即可实时浮现。</p>
+  </div>
+
+  <footer id="foot">
+    <span id="port">…</span>
+    <span id="clock">--:--</span>
+  </footer>
+</div>
+<script src="tasks.js"></script>
+</body>
+</html>

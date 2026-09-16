@@ -1,6 +1,12 @@
 // 卜卜宠物 · Electron 主进程
 const { app, BrowserWindow, ipcMain, screen, dialog } = require('electron')
-const gotLock = app.requestSingleInstanceLock()
+const argv = process.argv
+const SMOKE = argv.includes('--smoke')
+const CAPTURE = argv.includes('--capture')
+const TASKTEST = argv.includes('--tasktest')
+const DEV_TEST = SMOKE || CAPTURE || TASKTEST
+// 开发自测模式放过单实例锁，便于与正在运行的真实实例并存验证
+const gotLock = DEV_TEST ? true : app.requestSingleInstanceLock()
 if (!gotLock) {
   // 已有实例在运行：必须用 app.exit 立即终止进程。
   // 若只用 app.quit()（异步），后续 whenReady 初始化仍会执行，
@@ -18,14 +24,29 @@ if (gotLock) {
 }
 const path = require('path')
 const fs = require('fs')
+const os = require('os')
+const http = require('http')
 const { spawn, execFileSync } = require('child_process')
 
-const SMOKE = process.argv.includes('--smoke')
-const CAPTURE = process.argv.includes('--capture')
+// 开发自测(TASKTEST)用独立 userData，避免与正在运行的真实实例争抢本地存储
+if (TASKTEST) {
+  try { app.setPath('userData', path.join(os.tmpdir(), 'bobo-tasktest')) } catch (e) {}
+}
+
 let win = null
 let positionFile = null
 let audioChild = null
 let audioRetries = 0
+
+// ---------- AI 任务监控（引擎常驻运行，浮窗按需打开） ----------
+let taskWin = null
+let taskServer = null
+let taskPort = 0
+let taskDir = null
+let taskTimer = null
+let taskPosFile = null
+const taskMap = new Map()   // id -> task
+const TASK_HTTP_PORT = 48710
 
 function log(...a) {
   console.log('[bobo]', ...a)
@@ -272,18 +293,261 @@ function scheduleAudioRetry() {
   }, 4000)
 }
 
+// ---------- AI 任务监控：引擎 + 浮窗 ----------
+// 数据源（通用、不绑定任何一家私有协议）：
+//   1) 监听统一任务目录 ~/bobo-tasks/ 下的 *.json，任何 AI 工具/脚本把任务状态写成 JSON 即被拾取
+//   2) 本地 HTTP 服务 127.0.0.1:<TASK_HTTP_PORT>，POST /tasks 实时推送 / DELETE /tasks/{id} 删除
+// 任一接入方式都实时刷新悬浮监控浮窗；浮窗高度随任务数量动态伸缩，多任务以卡片分开渲染、不堆叠。
+function getTaskDir() {
+  if (taskDir) return taskDir
+  taskDir = path.join(os.homedir(), 'bobo-tasks')
+  try { fs.mkdirSync(taskDir, { recursive: true }) } catch (e) {}
+  return taskDir
+}
+
+function scanTaskFiles() {
+  const dir = getTaskDir()
+  let files = []
+  try { files = fs.readdirSync(dir) } catch (e) { return }
+  const found = new Set()
+  for (const f of files) {
+    if (!/\.json$/i.test(f) || f.endsWith('.seeded')) continue
+    const p = path.join(dir, f)
+    found.add(f)
+    let raw
+    try { raw = fs.readFileSync(p, 'utf8') } catch (e) { continue }
+    try {
+      const t = JSON.parse(String(raw).replace(/^\uFEFF/, ''))
+      if (!t || typeof t.id !== 'string' || !t.id) continue
+      t.file = f
+      taskMap.set(t.id, t)
+    } catch (e) { /* 正在写入/不完整文件：跳过本帧 */ }
+  }
+  for (const [id, t] of taskMap) {
+    if (t.file && !found.has(t.file)) taskMap.delete(id)
+  }
+}
+
+function broadcastTasks() {
+  if (!taskWin || taskWin.isDestroyed() || !taskWin.isVisible()) return
+  const tasks = Array.from(taskMap.values())
+    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  const meta = {
+    total: tasks.length,
+    running: tasks.filter(t => t.state === 'running').length,
+    done: tasks.filter(t => t.state === 'done').length,
+    failed: tasks.filter(t => t.state === 'fail' || t.state === 'error').length
+  }
+  taskWin.webContents.send('tasks:update', { tasks, meta })
+}
+
+function pollTasks() {
+  scanTaskFiles()
+  broadcastTasks()
+}
+
+function upsertTask(t) {
+  t.updatedAt = Date.now()
+  taskMap.set(t.id, t)
+  const safe = String(t.id).replace(/[^A-Za-z0-9._-]/g, '_') || 'task'
+  try { fs.writeFileSync(path.join(getTaskDir(), safe + '.json'), JSON.stringify(t, null, 2)) } catch (e) {}
+  broadcastTasks()
+}
+
+function removeTask(id) {
+  taskMap.delete(id)
+  const dir = getTaskDir()
+  try {
+    for (const f of fs.readdirSync(dir)) {
+      if (!/\.json$/i.test(f) || f.endsWith('.seeded')) continue
+      let raw = ''
+      try { raw = fs.readFileSync(path.join(dir, f), 'utf8') } catch (e) { continue }
+      try {
+        const j = JSON.parse(String(raw).replace(/^\uFEFF/, ''))
+        if (j && j.id === id) { fs.unlinkSync(path.join(dir, f)); break }
+      } catch (e) { /* ignore */ }
+    }
+  } catch (e) {}
+  broadcastTasks()
+}
+
+function handleTaskRequest(req, res) {
+  const u = req.url || '/'
+  const pathname = u.split('?')[0]
+  res.setHeader('Access-Control-Allow-Origin', '*')
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,DELETE,OPTIONS')
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return }
+  if (req.method === 'GET' && pathname === '/') {
+    res.writeHead(200, { 'Content-Type': 'text/plain; charset=utf-8' })
+    res.end('卜卜 AI 任务监控 · 127.0.0.1:' + taskPort + '\n任务数: ' + taskMap.size + '\nPOST /tasks 推送任务 · GET /tasks 查询 · DELETE /tasks/{id} 移除\n示例: curl -X POST -H "Content-Type: application/json" -d \'{"id":"t1","title":"hi","state":"running"}\' http://127.0.0.1:' + taskPort + '/tasks')
+    return
+  }
+  if (req.method === 'GET' && pathname === '/tasks') {
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify(Array.from(taskMap.values())))
+    return
+  }
+  if (req.method === 'POST' && /^\/tasks(\/|$)/.test(pathname)) {
+    let body = ''
+    req.on('data', c => { body += c; if (body.length > 2e6) req.destroy() })
+    req.on('end', () => {
+      try {
+        const j = JSON.parse(body)
+        const task = j && j.task ? j.task : j
+        if (task && typeof task.id === 'string' && task.id) {
+          if (task.state === 'removed' || task.deleted) removeTask(task.id)
+          else upsertTask(task)
+        }
+        res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+        res.end(JSON.stringify({ ok: true, count: taskMap.size }))
+      } catch (e) {
+        res.writeHead(400, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({ ok: false, error: 'bad-json' }))
+      }
+    })
+    return
+  }
+  if (req.method === 'DELETE' && /^\/tasks\//.test(pathname)) {
+    removeTask(decodeURIComponent(pathname.slice(7)))
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' })
+    res.end(JSON.stringify({ ok: true, removed: true }))
+    return
+  }
+  res.writeHead(404); res.end()
+}
+
+function startTaskMonitor() {
+  // 首次运行写入两条示例任务，打开浮窗即可看到动态列表与完整数据链路（可直接删除 ~/bobo-tasks 下文件）
+  try {
+    const flag = path.join(getTaskDir(), '.seeded')
+    if (!fs.existsSync(flag)) {
+      const samples = [
+        { id: 'demo-1', source: 'TRAE', title: '整理登录页权限重构', state: 'running', progress: 64, detail: '正在抽取统一的鉴权中间件…', updatedAt: Date.now() - 60000 },
+        { id: 'demo-2', source: 'Codex', title: '修复构建脚本 lipo 合并', state: 'running', progress: 32, detail: '重新编译 arm64 helper…', updatedAt: Date.now() - 20000 }
+      ]
+      for (const t of samples) fs.writeFileSync(path.join(getTaskDir(), t.id + '.json'), JSON.stringify(t, null, 2))
+      fs.writeFileSync(flag, '1')
+    }
+  } catch (e) {}
+  pollTasks()
+  taskTimer = setInterval(pollTasks, 900)
+
+  try {
+    taskServer = http.createServer(handleTaskRequest)
+    taskServer.once('error', (e) => {
+      if (e && e.code === 'EADDRINUSE' && taskPort !== 0) {
+        taskServer.listen(0, '127.0.0.1', () => { taskPort = taskServer.address().port })
+      }
+    })
+    taskServer.listen(TASK_HTTP_PORT, '127.0.0.1', () => { taskPort = taskServer.address().port })
+    log('AI任务监控端口 http://127.0.0.1:' + taskPort)
+  } catch (e) {
+    log('start task http server error', e.message)
+  }
+}
+
+function cleanupTaskMonitor() {
+  if (taskTimer) { clearInterval(taskTimer); taskTimer = null }
+  if (taskServer) { try { taskServer.close() } catch (e) {} taskServer = null }
+  if (taskWin && !taskWin.isDestroyed()) { try { taskWin.destroy() } catch (e) {} taskWin = null }
+}
+
+function loadTaskPosition() {
+  try {
+    const p = JSON.parse(fs.readFileSync(taskPosFile, 'utf8'))
+    if (typeof p.x === 'number' && typeof p.y === 'number') return p
+  } catch (e) {}
+  return null
+}
+function saveTaskPosition() {
+  if (!taskWin || taskWin.isDestroyed() || SMOKE || CAPTURE) return
+  try { fs.writeFileSync(taskPosFile, JSON.stringify(taskWin.getPosition())) } catch (e) {}
+}
+
+function createTaskWindow() {
+  // 已存在：可见则隐藏、隐藏则显示前置（即"右键菜单是开关"）
+  if (taskWin && !taskWin.isDestroyed()) {
+    if (taskWin.isVisible()) taskWin.hide()
+    else { taskWin.show(); taskWin.focus(); broadcastTasks() }
+    return
+  }
+  taskWin = new BrowserWindow({
+    width: 360,
+    height: 260,
+    transparent: true,
+    frame: false,
+    resizable: false,
+    hasShadow: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  })
+  taskWin.setAlwaysOnTop(true, 'floating')
+  taskWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true })
+  taskWin.loadFile(path.join(__dirname, 'renderer', 'tasks.html'))
+  const wa = screen.getPrimaryDisplay().workArea
+  let pos = loadTaskPosition()
+  if (!pos) pos = { x: wa.x + wa.width - 380, y: wa.y + 40 }
+  taskWin.setPosition(pos.x, pos.y)
+  taskWin.webContents.once('did-finish-load', broadcastTasks)
+  taskWin.once('ready-to-show', () => { taskWin.showInactive(); setTimeout(broadcastTasks, 150) })
+  taskWin.on('moved', saveTaskPosition)
+  taskWin.on('closed', () => { taskWin = null })
+}
+
+ipcMain.on('bobo:open-ai-tasks', createTaskWindow)
+ipcMain.handle('bobo:ai-tasks-info', () => ({
+  port: taskPort,
+  dir: getTaskDir(),
+  sample: JSON.stringify({ id: 't-demo', source: 'TRAE', title: '示例任务', state: 'running', progress: 50 })
+}))
+ipcMain.on('tasks:resize', (e, d) => {
+  if (!taskWin || taskWin.isDestroyed() || !taskWin.isVisible()) return
+  const w = Math.max(280, Math.min(430, Math.round(d.width || 360)))
+  const h = Math.max(180, Math.min(640, Math.round(d.height || 260)))
+  const [curW, curH] = taskWin.getSize()
+  if (Math.abs(curW - w) > 2 || Math.abs(curH - h) > 2) taskWin.setSize(w, h)
+})
+
 // ---------- 启动 ----------
 app.whenReady().then(() => {
   positionFile = path.join(app.getPath('userData'), 'position.json')
+  taskPosFile = path.join(app.getPath('userData'), 'ai-tasks-position.json')
   ensureSkinMeta()
   createWindow()
-  if (!SMOKE) {
+  if (TASKTEST) {
+    setTimeout(() => { log('TASKTEST_HARD_EXIT'); app.exit(0) }, 20000)
+    const pre = Date.now() - 120000
+    upsertTask({ id: 'f-a', source: 'TRAE', title: '重构鉴权中间件', state: 'running', progress: 30, detail: '正在抽取统一登录拦截…', updatedAt: pre })
+    createTaskWindow()
+    setTimeout(() => upsertTask({ id: 'f-b', source: 'Codex', title: '修复构建脚本 lipo 合并', state: 'running', progress: 62, detail: '重新编译 arm64 helper 二进制…', updatedAt: Date.now() - 5000 }), 400)
+    setTimeout(() => upsertTask({ id: 'f-c', source: 'WorkBuddy', title: '整理会议纪要', state: 'done', progress: 100, detail: '已完成摘要与待办提取', updatedAt: Date.now() - 3000 }), 650)
+    var snap = () => setTimeout(() => {
+      taskWin.webContents.capturePage().then((img) => {
+        fs.writeFileSync('/tmp/bobo-tasks-preview.png', img.toPNG())
+        log('TASKTEST_OK /tmp/bobo-tasks-preview.png')
+        app.exit(0)
+      }).catch(() => app.exit(0))
+    }, 1300)
+    if (taskWin && taskWin.webContents.isLoading()) taskWin.webContents.once('did-finish-load', snap)
+    else setTimeout(snap, 500)
+  }
+  if (!SMOKE && !TASKTEST) {
     startAudioHelper()
+  }
+  if (!SMOKE) {
+    startTaskMonitor()
   }
   // 退出时清理音频助手子进程，避免残留常驻内存
   app.on('before-quit', () => {
     savePosition()
     cleanupAudioHelper()
+    cleanupTaskMonitor()
   })
   app.on('will-quit', () => { cleanupAudioHelper() })
 })

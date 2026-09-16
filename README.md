@@ -2,14 +2,14 @@
 
 > **版权声明**：桌面宠物「卜卜」形象版权归 **STAYREAL（五月天阿信 × 不二良）所有**。本应用为通用工具，支持你用**自己的本地图片**导入替换其建模形象；请勿将卜卜形象用于任何商业用途。
 
-当前版本：**v0.1.0**（本版已归档）
+当前版本：**v0.2.0**
 
 ---
 
-## ⬇️ 立即下载 · v0.1.0
+## ⬇️ 立即下载 · v0.2.0
 
-- [🍎 macOS 通用版（Apple Silicon + Intel）…bobo-pet-0.1.0-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.1.0-universal.dmg)
-- [🪟 Windows x64 中文安装包 …bobo-pet-0.1.0-windows-installer.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.1.0-windows-installer.exe)
+- [🍎 macOS 通用版（Apple Silicon + Intel）…bobo-pet-0.2.0-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.2.0-universal.dmg)
+- [🪟 Windows x64 中文安装包 …bobo-pet-0.2.0-windows-installer.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.2.0-windows-installer.exe)
 
 > 安装包托管在 **GitHub Releases**（每个 >100MB，不放进 git 仓库）。安装方法见文末「首次使用授权 / 常见问题」。
 
@@ -47,6 +47,24 @@
 | 🎨 自定义形象 | 启动 / 右键导入你自己的本地图片作为宠物形象与生气表情，支持 PNG/JPG 等（可同图） |
 | 🥕 互动     | 戳它（有反应）、拖拽满屏跑、右键菜单、眨眼 / 呼吸 / 睡觉                   |
 | 💬 气泡吐槽   | 戳它、提醒、睡觉都会说话                                      |
+| 🤖 AI 任务监控 | 右键 →「AI任务监控」：独立高亮悬浮窗实时展示 TRAE / Codex / WorkBuddy 等 AI 任务，多任务卡片分栏不堆叠、高度随数量动态伸缩 |
+
+### 🤖 AI 任务监控 · 数据接入
+
+监控窗常驻一个本地数据源，任何 AI 工具 / 脚本写任务状态即可实时浮现：
+
+- **任务目录**：`~/bobo-tasks/` 下的任意 `.json`（约每 0.9 秒扫描一次）。文件内容形如
+  ```json
+  { "id": "t-1", "source": "TRAE", "title": "修复登录空指针", "state": "running", "progress": 64, "detail": "正在重构…", "updatedAt": 1730000000000 }
+  ```
+  - `state`：`running / done / fail(或 error) / queued / idle`
+  - 删除文件即从监控窗移除对应任务
+- **本地 HTTP**（`http://127.0.0.1:48710`，若被占用自动换端口）：
+  ```bash
+  curl -X POST -H "Content-Type: application/json" -d '{"id":"t-2","title":"任务 A","state":"running","progress":40}' http://127.0.0.1:48710/tasks
+  curl -X DELETE http://127.0.0.1:48710/tasks/t-2
+  ```
+- 首次运行会自动生成 2 条示例任务，方便直接看到动态列表（删除 `~/bobo-tasks` 下文件即可清空）
 
 
 
