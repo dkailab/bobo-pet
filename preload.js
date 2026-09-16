@@ -15,5 +15,6 @@ contextBridge.exposeInMainWorld('bobo', {
   openAiTasks: () => ipcRenderer.send('bobo:open-ai-tasks'),
   getAiTasksInfo: () => ipcRenderer.invoke('bobo:ai-tasks-info'),
   onTasksUpdate: (cb) => ipcRenderer.on('tasks:update', (_e, d) => cb(d)),
-  taskResize: (d) => ipcRenderer.send('tasks:resize', d)
+  taskResize: (d) => ipcRenderer.send('tasks:resize', d),
+  openToolApp: (key) => ipcRenderer.invoke('bobo:open-tool', key)
 })

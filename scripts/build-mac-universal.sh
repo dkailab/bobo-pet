@@ -15,7 +15,7 @@ set -e
 cd "$(dirname "$0")/.."
 ROOT="$(pwd)"
 MIRROR="${ELECTRON_MIRROR:-https://npmmirror.com/mirrors/electron/}"
-VERSION="${VERSION:-0.2.0}"
+VERSION="${VERSION:-0.2.1}"
 DMG="$ROOT/dist/卜卜宠物-${VERSION}-universal.dmg"
 
 echo "========== 0. 校验语法 =========="

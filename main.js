@@ -26,7 +26,7 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const http = require('http')
-const { spawn, execFileSync } = require('child_process')
+const { spawn, execFileSync, execFile } = require('child_process')
 
 // 开发自测(TASKTEST)用独立 userData，避免与正在运行的真实实例争抢本地存储
 if (TASKTEST) {
@@ -45,11 +45,213 @@ let taskPort = 0
 let taskDir = null
 let taskTimer = null
 let taskPosFile = null
+let pollBusy = false
 const taskMap = new Map()   // id -> task
 const TASK_HTTP_PORT = 48710
 
+// ---------- 本地工具数据读取辅助 ----------
+const trailerMax = 40000          // 会话文件尾部读取字节数，避免整读超大日志
+function sqliteJson(db, sql) {
+  return new Promise((resolve) => {
+    try {
+      execFile('sqlite3', ['-json', db, sql], { timeout: 4000 }, (err, stdout) => {
+        if (err) return resolve(null)
+        try { resolve(JSON.parse(String(stdout))) } catch (e) { resolve(null) }
+      })
+    } catch (e) { resolve(null) }
+  })
+}
+function tailRead(file, maxBytes) {
+  return new Promise((resolve) => {
+    let txt = ''
+    try {
+      const fd = fs.openSync(file, 'r')
+      const st = fs.fstatSync(fd)
+      const off = Math.max(0, st.size - maxBytes)
+      if (off === 0) txt = fs.readFileSync(file, 'utf8')
+      else {
+        const buf = Buffer.alloc(st.size - off)
+        fs.readSync(fd, buf, 0, buf.length, off)
+        txt = buf.toString('utf8')
+      }
+      fs.closeSync(fd)
+    } catch (e) { txt = '' }
+    resolve(txt)
+  })
+}
+function listCodexRollouts() {
+  const base = path.join(os.homedir(), '.codex', 'sessions')
+  const out = []
+  if (!fs.existsSync(base)) return out
+  ;(function walk(d) {
+    let es = []
+    try { es = fs.readdirSync(d) } catch (e) { return }
+    for (const e of es) {
+      const p = path.join(d, e)
+      let st = null
+      try { st = fs.statSync(p) } catch (err) { continue }
+      if (st.isDirectory()) walk(p)
+      else if (/^rollout-.*\.jsonl$/.test(e)) out.push({ file: p, mtime: st.mtimeMs })
+    }
+  })(base)
+  return out.sort((a, b) => b.mtime - a.mtime).slice(0, 15)
+}
+function listClaudeTranscripts() {
+  const base = path.join(os.homedir(), '.claude', 'projects')
+  const out = []
+  if (!fs.existsSync(base)) return out
+  let projects = []
+  try { projects = fs.readdirSync(base) } catch (e) { return out }
+  for (const pr of projects) {
+    const pd = path.join(base, pr)
+    let files = []
+    try { files = fs.readdirSync(pd) } catch (e) { continue }
+    for (const f of files) {
+      if (!/\.jsonl$/.test(f)) continue
+      const p = path.join(pd, f)
+      let st = null
+      try { st = fs.statSync(p) } catch (e) { continue }
+      out.push({ file: p, mtime: st.mtimeMs })
+    }
+  }
+  return out.sort((a, b) => b.mtime - a.mtime).slice(0, 15)
+}
+
 function log(...a) {
   console.log('[bobo]', ...a)
+}
+
+// ---------- 会话 JSONL 元数据解析 ----------
+function codexMeta(lines) {
+  const users = [], assts = []
+  for (const raw of lines) {
+    const l = raw.trim()
+    if (!l) continue
+    try {
+      const j = JSON.parse(l)
+      if (j.type === 'response_item' && j.payload && j.payload.type === 'message') {
+        const text = (j.payload.content || []).map(c => (c && c.text) || '').join(' ').trim()
+        if (!text) continue
+        if (j.payload.role === 'user') users.push(text)
+        else if (j.payload.role === 'assistant') assts.push(text)
+      }
+    } catch (e) { /* 单行解析失败跳过 */ }
+  }
+  return { title: users[users.length - 1] || '', detail: assts[assts.length - 1] || '' }
+}
+function claudeMeta(lines) {
+  let title = '', prompt = '', lastUser = ''
+  for (const raw of lines) {
+    const l = raw.trim()
+    if (!l) continue
+    try {
+      const j = JSON.parse(l)
+      const t = j.type
+      if (t === 'ai-title' && (j.aiTitle || j.title)) title = j.aiTitle || j.title
+      else if (t === 'last-prompt' && j.lastPrompt) prompt = j.lastPrompt
+      else if (t === 'user' && j.message && j.message.content) lastUser = strContent(j.message.content)
+    } catch (e) { /* 跳过 */ }
+  }
+  return { title, prompt, lastUser }
+}
+function strContent(c) {
+  if (Array.isArray(c)) return c.map(ci => (typeof ci === 'string' ? ci : (ci.text || ''))).join(' ').trim()
+  return String(c || '')
+}
+function normState(s) {
+  const m = { working: 'running', pending: 'queued', completed: 'done', terminated: 'done', error: 'fail', failed: 'fail', success: 'done' }
+  return m[(s || '').toLowerCase()] || 'idle'
+}
+function shortCwd(cwd) {
+  if (!cwd) return ''
+  return String(cwd).replace(os.homedir(), '~')
+}
+function trunc(s, n) { s = String(s || '').trim(); return s.length > n ? s.slice(0, n - 1) + '…' : s }
+
+// ---------- 各工具实时任务适配器（读本地日志/SQLite，尽力而为） ----------
+async function pollWorkBuddy() {
+  const db = path.join(os.homedir(), '.workbuddy', 'workbuddy.db')
+  if (!fs.existsSync(db)) return []
+  const sql = "SELECT id, COALESCE(NULLIF(custom_title,''), title, '') AS title, status, model, cwd, updated_at FROM sessions WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT 25"
+  const rows = await sqliteJson(db, sql)
+  if (!rows) return []
+  const now = Date.now()
+  return rows.map(r => {
+    const st = normState(r.status)
+    const title = (r.title || '').trim() || 'WorkBuddy 任务'
+    const bits = []
+    if (r.model) bits.push('模型 ' + r.model)
+    if (r.cwd) bits.push(shortCwd(r.cwd))
+    return { id: 'wb:' + r.id, title, state: st, progress: st === 'done' ? 100 : null, detail: bits.join(' · '), updatedAt: r.updated_at ? Number(r.updated_at) : now }
+  })
+}
+async function pollCodex() {
+  const files = listCodexRollouts()
+  const now = Date.now()
+  const out = []
+  for (const f of files) {
+    const txt = await tailRead(f.file, trailerMax)
+    const { title, detail } = codexMeta(txt.split('\n'))
+    const state = (now - f.mtime < 150000) ? 'running' : 'done'
+    const fallback = 'Codex 会话 · ' + path.basename(f.file, '.jsonl').slice(0, 16)
+    out.push({ id: 'cx:' + path.basename(f.file), title: title || fallback, state, progress: state === 'done' ? 100 : null, detail: trunc(detail, 200) || '查看 Codex 会话', updatedAt: Math.round(f.mtime) })
+  }
+  return out
+}
+async function pollClaude() {
+  const files = listClaudeTranscripts()
+  const now = Date.now()
+  const out = []
+  for (const f of files) {
+    const txt = await tailRead(f.file, trailerMax)
+    const { title, prompt, lastUser } = claudeMeta(txt.split('\n'))
+    const state = (now - f.mtime < 150000) ? 'running' : 'done'
+    out.push({ id: 'cl:' + path.basename(f.file), title: title || 'Claude 会话', state, progress: state === 'done' ? 100 : null, detail: trunc(lastUser || prompt || '查看 Claude 会话', 200), updatedAt: Math.round(f.mtime) })
+  }
+  return out
+}
+async function pollTrae() { return [] }   // 占位：TRAE 已停用监控
+
+// ---------- 工具源注册表 + 合流 ----------
+function workbuddyAppPath() {
+  return fs.existsSync(path.join('/Applications', 'WorkBuddy.app')) ? 'WorkBuddy' : null
+}
+function toolAppName(key) {
+  if (key === 'workbuddy') return workbuddyAppPath()
+  return null
+}
+ipcMain.handle('bobo:open-tool', (e, key) => {
+  const name = toolAppName(key)
+  if (!name) return { ok: false, why: 'no-app' }
+  try { execFile('open', ['-a', name]); return { ok: true } } catch (err) { return { ok: false, why: err.message } }
+})
+const TOOL_SOURCES = [
+  { key: 'workbuddy', label: 'WorkBuddy', color: ['#22D3EE', 'rgba(34,211,238,.15)'],
+    detect: () => fs.existsSync(path.join(os.homedir(), '.workbuddy', 'workbuddy.db')),
+    poll: pollWorkBuddy, note: null },
+  { key: 'codex', label: 'Codex', color: ['#A78BFA', 'rgba(167,139,250,.15)'],
+    detect: () => fs.existsSync(path.join(os.homedir(), '.codex')),
+    poll: pollCodex, note: null },
+  { key: 'claude', label: 'Claude', color: ['#F59E0B', 'rgba(245,158,11,.15)'],
+    detect: () => fs.existsSync(path.join(os.homedir(), '.claude')),
+    poll: pollClaude, note: null }
+]
+async function collectToolSources() {
+  const out = []
+  for (const t of TOOL_SOURCES) {
+    let installed = false
+    try { installed = !!t.detect() } catch (e) { installed = false }
+    // 装了对应工具但没有可读会话日志时，视为未安装而不显示 tab
+    if (installed && t.key === 'codex' && listCodexRollouts().length === 0) installed = false
+    if (installed && t.key === 'claude' && listClaudeTranscripts().length === 0) installed = false
+    let tasks = []
+    if (installed) { try { tasks = await t.poll() || [] } catch (e) { tasks = [] } }
+    out.push({ key: t.key, label: t.label, installed, appName: toolAppName(t.key), color: t.color, note: t.note || null, tasks })
+  }
+  // 「推送接入」源：~/bobo-tasks 文件 + 本地 HTTP
+  const push = Array.from(taskMap.values()).sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
+  out.push({ key: 'push', label: '推送接入', installed: true, appName: null, color: ['#FBBF24', 'rgba(251,191,36,.15)'], note: null, tasks: push })
+  return out
 }
 
 // ---------- 窗口 ----------
@@ -328,22 +530,27 @@ function scanTaskFiles() {
   }
 }
 
-function broadcastTasks() {
+async function broadcastTasks() {
   if (!taskWin || taskWin.isDestroyed() || !taskWin.isVisible()) return
-  const tasks = Array.from(taskMap.values())
-    .sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0))
-  const meta = {
-    total: tasks.length,
-    running: tasks.filter(t => t.state === 'running').length,
-    done: tasks.filter(t => t.state === 'done').length,
-    failed: tasks.filter(t => t.state === 'fail' || t.state === 'error').length
+  let sources = []
+  try { sources = await collectToolSources() } catch (e) { sources = [] }
+  let total = 0, running = 0, done = 0, failed = 0
+  for (const s of sources) for (const t of s.tasks) {
+    total++
+    if (t.state === 'running') running++
+    else if (t.state === 'done') done++
+    else if (t.state === 'fail' || t.state === 'error') failed++
   }
-  taskWin.webContents.send('tasks:update', { tasks, meta })
+  taskWin.webContents.send('tasks:update', { sources, meta: { total, running, done, failed } })
 }
 
-function pollTasks() {
-  scanTaskFiles()
-  broadcastTasks()
+async function pollTasks() {
+  if (pollBusy) return
+  pollBusy = true
+  try {
+    scanTaskFiles()
+    await broadcastTasks()
+  } finally { pollBusy = false }
 }
 
 function upsertTask(t) {

@@ -1,7 +1,7 @@
 {
   "name": "bobo-pet",
   "productName": "卜卜宠物",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "桌面宠物：跟音乐蹦迪，被戳会躲，自带待办与提醒",
   "main": "main.js",
   "scripts": {

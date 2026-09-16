@@ -2,14 +2,14 @@
 
 > **版权声明**：桌面宠物「卜卜」形象版权归 **STAYREAL（五月天阿信 × 不二良）所有**。本应用为通用工具，支持你用**自己的本地图片**导入替换其建模形象；请勿将卜卜形象用于任何商业用途。
 
-当前版本：**v0.2.0**
+当前版本：**v0.2.1**
 
 ---
 
-## ⬇️ 立即下载 · v0.2.0
+## ⬇️ 立即下载 · v0.2.1
 
-- [🍎 macOS 通用版（Apple Silicon + Intel）…bobo-pet-0.2.0-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.2.0-universal.dmg)
-- [🪟 Windows x64 中文安装包 …bobo-pet-0.2.0-windows-installer.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.2.0-windows-installer.exe)
+- [🍎 macOS 通用版（Apple Silicon + Intel）…bobo-pet-0.2.1-universal.dmg](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.2.1-universal.dmg)
+- [🪟 Windows x64 中文安装包 …bobo-pet-0.2.1-windows-installer.exe](https://github.com/dkailab/bobo-pet/releases/latest/download/bobo-pet-0.2.1-windows-installer.exe)
 
 > 安装包托管在 **GitHub Releases**（每个 >100MB，不放进 git 仓库）。安装方法见文末「首次使用授权 / 常见问题」。
 
@@ -38,6 +38,28 @@
 
 ***
 
+## 🆕 v0.2.1 更新内容
+
+- 🤖 **AI 任务监控全新升级**：整体改为**橙色主题**，右下角带**虚化胡萝卜**背景装饰。
+- 🗂️ 每个工具下分「**⚡执行中 / ✓已完成**」两段，**默认展示执行中**，已完成一键收起。
+- 🔄 **卡片无感刷新**：数据变化时只原地更新对应卡片，不再整屏闪烁重建。
+- 🚫 **移除 TRAE 监控**：专注 WorkBuddy / Codex / Claude 与推送接入。
+
+***
+
+## 📌 现有功能速览
+
+| 功能 | 一句话说明 |
+| --- | --- |
+| 🕺 节拍蹦迪 | 采集系统音频感知能量/节拍，快歌蹦迪、慢歌摇摆 |
+| 💥 连点生气 | 快速连点 3 下进入生气状态，逐级吐槽 + 切换生气表情，停手恢复 |
+| 🥕 戳·拖·陪 | 戳它会躲会说话、按住拖满屏跑、右键菜单、眨眼/呼吸/睡觉 |
+| 🎨 自定义形象 | 导入你自己的本地图片作为形象与生气表情（不内置任何受版权形象） |
+| ✅ 待办·提醒 | 自带待办清单（超时温馨提醒）、番茄钟、喝水提醒 |
+| 🤖 AI 任务监控 | 悬浮窗按工具分 tab 实时监控 AI 任务，分「执行中 / 已完成」两段，轮廓无感刷新 |
+
+***
+
 ## ✨ 功能
 
 
@@ -49,15 +71,28 @@
 | 🎨 自定义形象 | 启动 / 右键导入你自己的本地图片作为宠物形象与生气表情，支持 PNG/JPG 等（可同图） |
 | 🥕 互动     | 戳它（有反应）、拖拽满屏跑、右键菜单、眨眼 / 呼吸 / 睡觉                   |
 | 💬 气泡吐槽   | 戳它、提醒、睡觉都会说话                                      |
-| 🤖 AI 任务监控 | 右键 →「AI任务监控」：独立高亮悬浮窗实时展示 TRAE / Codex / WorkBuddy 等 AI 任务，多任务卡片分栏不堆叠、高度随数量动态伸缩 |
+| 🤖 AI 任务监控 | 右键 →「AI任务监控」：**橙色主题**悬浮窗（右下角虚化胡萝卜背景），**按工具分 tab**（WorkBuddy / Codex / Claude / 推送接入）实时展示；每个工具下分「**执行中 / 已完成**」两段、默认看执行中；任务卡片**原地无感刷新**，多任务分栏不堆叠、高度随数量动态伸缩，点击卡片打开对应 App |
 
 ### 🤖 AI 任务监控 · 数据接入
+
+浮窗右上角会按**本机已安装**的工具自动显示 tab（未安装的不会出现）：
+
+| tab | 数据来源 | 说明 |
+| --- | --- | --- |
+| 🌀 WorkBuddy | `~/.workbuddy/workbuddy.db` | 直接读取其 `sessions` 表，带真实状态（执行中/完成/失败） |
+| ⚡ Codex | `~/.codex/sessions/**` | 解析 rollout 会话日志，标题=最近一条用户指令 |
+| 🟠 Claude | `~/.claude/projects/**` | 解析会话转录，用 aiTitle / 最近提示 |
+| 📨 推送接入 | `~/bobo-tasks/` + 本地 HTTP | 任何工具/脚本可写（详情见下） |
+
+状态说明：受各家日志/数据库实时性限制，**"执行中"以最近 1–2 秒内有写入为准**（尽力而为、约 1–3 秒延迟），完成后会标记为"完成"。
+
+**点击任务卡片**可打开对应工具 App（WorkBuddy）；Codex / Claude 为命令行工具、无独立 App，卡片不可点击。
 
 监控窗常驻一个本地数据源，任何 AI 工具 / 脚本写任务状态即可实时浮现：
 
 - **任务目录**：`~/bobo-tasks/` 下的任意 `.json`（约每 0.9 秒扫描一次）。文件内容形如
   ```json
-  { "id": "t-1", "source": "TRAE", "title": "修复登录空指针", "state": "running", "progress": 64, "detail": "正在重构…", "updatedAt": 1730000000000 }
+  { "id": "t-1", "source": "WorkBuddy", "title": "修复登录空指针", "state": "running", "progress": 64, "detail": "正在重构…", "updatedAt": 1730000000000 }
   ```
   - `state`：`running / done / fail(或 error) / queued / idle`
   - 删除文件即从监控窗移除对应任务
